@@ -5,7 +5,7 @@ import time
 import random
 import string
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from curl_cffi import requests
@@ -90,7 +90,7 @@ def send_discord_webhook(item):
         "url": item['url'],
         "color": 0x09B1BA,
         "description": title[:100], 
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "thumbnail": thumbnail_obj,
         "fields": [
             {"name": "Price", "value": f"**{price}**", "inline": True},
