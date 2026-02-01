@@ -88,6 +88,8 @@ No new drops. (Scan: 96)
 -> Webhook: Ralph Lauren (25,00 €)
 ```
 
+<img width="499" height="648" alt="image" src="https://github.com/user-attachments/assets/550ce82f-00ca-44eb-b51c-6efb22dbf6d4" />
+
 ## Project Structure
 
 ```
