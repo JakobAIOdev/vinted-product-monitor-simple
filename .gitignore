@@ -18,6 +18,7 @@ dist/
 seen_items.json
 .seen_items.json
 seen.json
+proxies.txt
 
 # IDE
 .idea/
