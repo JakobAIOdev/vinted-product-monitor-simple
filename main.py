@@ -156,7 +156,7 @@ def parse_vinted_html(html_content):
 # --- INITIALIZATION & MAIN LOOP ---
 
 def initial_scan(seen_items):
-    print(f"{Colors.CYAN}[INIT] Performing initial scan (filling database)...{Colors.END}")
+    print(f"{Colors.CYAN}[INIT] Syncing current listings...{Colors.END}")
     
     while True:
         proxies = get_rotating_proxy()
@@ -169,11 +169,14 @@ def initial_scan(seen_items):
                     time.sleep(2)
                     continue
 
+                new_count = 0
                 for item in items:
-                    seen_items.add(item['id'])
+                    if item['id'] not in seen_items:
+                        seen_items.add(item['id'])
+                        new_count += 1
                 
                 save_seen_items(seen_items)
-                print(f"{Colors.GREEN}[OK] Initial scan complete. Saved {len(items)} items. Starting monitor...{Colors.END}")
+                print(f"{Colors.GREEN}[OK] Synced {len(items)} items ({new_count} new). Monitor ready.{Colors.END}")
                 return 
             else:
                 print(f"{Colors.YELLOW}[WARN] Initial scan failed ({r.status_code}). Retrying...{Colors.END}")
@@ -202,8 +205,7 @@ def main():
         try: requests.post(WEBHOOK_URL, json={"content": "**Monitor Online**"}) 
         except: pass
 
-    if len(seen_items) == 0:
-        initial_scan(seen_items)
+    initial_scan(seen_items)
     
     while True:
         proxies = get_rotating_proxy()
@@ -214,19 +216,17 @@ def main():
             if r.status_code == 200:
                 current_items = parse_vinted_html(r.text)
                 
-                max_seen_id = 0
-                valid_ids = [int(i) for i in seen_items if i.isdigit()]
-                if valid_ids: max_seen_id = max(valid_ids)
+                if not current_items:
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    print(f"{Colors.YELLOW}[{timestamp}] Parser returned 0 items{Colors.END}")
+                    time.sleep(POLL_SECONDS)
+                    continue
 
                 new_items_found = []
                 for item in current_items:
-                    if item['id'] not in seen_items:
-                        try:
-                            if int(item['id']) > max_seen_id:
-                                new_items_found.append(item)
-                            else:
-                                seen_items.add(item['id'])
-                        except: pass
+                    if item['id'] in seen_items:
+                        break
+                    new_items_found.append(item)
 
                 if new_items_found:
                     print(f"{Colors.GREEN}{Colors.BOLD}[NEW] {len(new_items_found)} DROP(S) FOUND!{Colors.END}")
@@ -234,7 +234,7 @@ def main():
                         print(f"{Colors.GREEN}   > {item['brand']} | {item['price']} | {item['size']}{Colors.END}")
                         send_discord_webhook(item)
                         seen_items.add(item['id'])
-                        time.sleep(1)
+                        time.sleep(0.5)
                     
                     save_seen_items(seen_items)
                 else:
