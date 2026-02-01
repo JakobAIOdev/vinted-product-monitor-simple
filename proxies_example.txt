@@ -1,0 +1,7 @@
+host1:port:user:pass
+host2:port:user:pass
+...
+
+2a00:1234:5678:9abc::1:12345:user123:pass456
+2a00:1234:5678:9abc::2:12345:user123:pass456
+...

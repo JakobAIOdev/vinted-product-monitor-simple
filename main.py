@@ -2,8 +2,6 @@ import os
 import re
 import json
 import time
-import random
-import string
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -11,19 +9,18 @@ from dotenv import load_dotenv
 from curl_cffi import requests
 from curl_cffi.requests.exceptions import RequestException, Timeout
 from bs4 import BeautifulSoup
+from proxy_manager import ProxyManager
 
 # --- CONFIGURATION & SETUP ---
 load_dotenv()
 SEEN_FILE = Path("seen_items.json")
 
 # Load Environment Variables
-PROXY_HOST = os.getenv("PROXY_HOST")
-PROXY_PORT = os.getenv("PROXY_PORT")
-PROXY_USER = os.getenv("PROXY_USER")
-PROXY_PASS_BASE = os.getenv("PROXY_PASS_BASE")
 URL = os.getenv("VINTED_URL")
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 POLL_SECONDS = int(os.getenv("POLL_SECONDS", "15"))
+
+pm = ProxyManager("proxies.txt") 
 
 # ANSI Colors for console output
 class Colors:
@@ -38,10 +35,6 @@ class Colors:
 
 def validate_config():
     missing = []
-    if not PROXY_HOST: missing.append("PROXY_HOST")
-    if not PROXY_PORT: missing.append("PROXY_PORT")
-    if not PROXY_USER: missing.append("PROXY_USER")
-    if not PROXY_PASS_BASE: missing.append("PROXY_PASS_BASE")
     if not URL: missing.append("VINTED_URL")
     
     if missing:
@@ -64,12 +57,6 @@ def load_seen_items():
 def save_seen_items(seen_ids: set):
     recent_ids = sorted(list(seen_ids))[-1000:]
     SEEN_FILE.write_text(json.dumps(recent_ids), encoding="utf-8")
-
-def get_rotating_proxy():
-    rand_session = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    proxy_pass = f"{PROXY_PASS_BASE}_session-{rand_session}_lifetime-5m"
-    proxy_url = f"http://{PROXY_USER}:{proxy_pass}@{PROXY_HOST}:{PROXY_PORT}"
-    return {"http": proxy_url, "https": proxy_url}
 
 def send_discord_webhook(item):
     if not WEBHOOK_URL: return
@@ -106,6 +93,7 @@ def send_discord_webhook(item):
             print(f"{Colors.YELLOW}[WARN] Discord Error: {r.text}{Colors.END}")
     except Exception as e:
         print(f"{Colors.YELLOW}[WARN] Webhook Exception: {e}{Colors.END}")
+
 
 # --- PARSING LOGIC ---
 
@@ -153,13 +141,19 @@ def parse_vinted_html(html_content):
         except: continue
     return items
 
+
 # --- INITIALIZATION & MAIN LOOP ---
 
 def initial_scan(seen_items):
     print(f"{Colors.CYAN}[INIT] Syncing current listings...{Colors.END}")
     
     while True:
-        proxies = get_rotating_proxy()
+        proxies = pm.get_proxy()
+        if not proxies:
+            print(f"{Colors.RED}[ERR] No proxies in proxies.txt! Please add some.{Colors.END}")
+            time.sleep(10)
+            continue
+            
         try:
             r = requests.get(URL, impersonate="chrome", proxies=proxies, timeout=20)
             if r.status_code == 200:
@@ -185,6 +179,7 @@ def initial_scan(seen_items):
         
         time.sleep(2)
 
+
 def main():
     print(f"\n{Colors.CYAN}{Colors.BOLD}╔══════════════════════════════════════╗{Colors.END}")
     print(f"{Colors.CYAN}{Colors.BOLD}║          VINTED MONITOR              ║{Colors.END}")
@@ -208,7 +203,11 @@ def main():
     initial_scan(seen_items)
     
     while True:
-        proxies = get_rotating_proxy()
+        proxies = pm.get_proxy()
+        if not proxies:
+            print(f"{Colors.RED}[ERR] No proxies loaded! Check proxies.txt{Colors.END}")
+            time.sleep(10)
+            continue
         
         try:
             r = requests.get(URL, impersonate="chrome", proxies=proxies, timeout=20)
